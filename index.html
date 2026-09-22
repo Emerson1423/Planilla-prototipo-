@@ -52,10 +52,13 @@ details{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
 summary{cursor:pointer;font-weight:500}
 .aviso{font-size:13px;color:var(--muted);margin:8px 0}
 .params{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.params .sub{grid-column:1/-1;margin:6px 0 0;font-size:13px;font-weight:600;color:var(--muted)}
+#params-msg .alerta{margin-top:10px}
 /* Alertas */
 #alertas{display:grid;gap:8px;margin-bottom:16px}
 .alerta{border-left:4px solid var(--warn-line);background:var(--warn-bg);color:var(--warn);padding:10px 12px;border-radius:0 var(--r) var(--r) 0}
 .alerta.alta{border-left-color:var(--bad-line);background:var(--bad-bg);color:var(--bad)}
+.alerta.info{border-left-color:var(--brand);background:var(--brand-soft);color:var(--ink)}
 .alerta strong{display:block;font-weight:600}
 .alerta small{display:block;margin-top:2px;opacity:.85}
 .sin-alertas{color:var(--muted);border:1px dashed var(--line);border-radius:var(--r);padding:10px 12px}
@@ -105,15 +108,18 @@ table.planilla tfoot td{font-weight:600;border-top:2px solid var(--ink);border-b
         <button type="button" data-caso="normal">Sin novedades</button>
         <button type="button" data-caso="minimo">Bajo el mínimo</button>
         <button type="button" data-caso="complejo">Alimentos y embargo</button>
+        <button type="button" data-caso="servicios">Prestación de servicios</button>
         <button type="button" class="link" id="limpiar">Limpiar</button>
       </div>
 
       <div class="grid2">
         <div><label for="nombre">Nombre</label><input type="text" id="nombre" autocomplete="off"></div>
         <div><label for="cargo">Cargo</label><input type="text" id="cargo" autocomplete="off"></div>
+        <div><label for="modalidad">Modalidad de pago</label>
+          <select id="modalidad"><option value="fijo">Sueldo fijo</option><option value="servicios">Prestación de servicios</option></select></div>
         <div><label for="tipo">Tipo de trabajador</label><select id="tipo"></select></div>
-        <div><label for="bruto">Salario bruto mensual (USD)</label><input type="number" id="bruto" min="0" step="0.01" inputmode="decimal"></div>
-        <div class="full">
+        <div class="full"><label for="bruto" id="bruto-lbl">Salario bruto mensual (USD)</label><input type="number" id="bruto" min="0" step="0.01" inputmode="decimal"></div>
+        <div class="full" id="enterada-wrap">
           <label for="enterada">¿Las cotizaciones ISSS y AFP de este trabajador ya fueron enteradas (pagadas) a las instituciones?</label>
           <select id="enterada">
             <option value="si">Sí, enteradas</option>
@@ -136,9 +142,10 @@ table.planilla tfoot td{font-weight:600;border-top:2px solid var(--ink);border-b
       <div id="otros"></div>
       <button type="button" id="add-otro">Agregar descuento</button>
 
-      <details>
-        <summary>Parámetros legales (editables)</summary>
-        <p class="aviso">Verifica cada valor con la norma vigente antes de la presentación. Los salarios mínimos de esta tabla son valores iniciales de referencia.</p>
+      <details open>
+        <summary>Cotizaciones y salario mínimo</summary>
+        <p class="aviso">Los porcentajes y techos de cotización están fijados por ley: el sistema no permite modificarlos y muestra una alerta si se intenta. Los salarios mínimos son valores iniciales de referencia; verifícalos con el decreto vigente.</p>
+        <div id="params-msg" aria-live="assertive"></div>
         <div class="params" id="params"></div>
       </details>
     </div>
@@ -194,7 +201,9 @@ const FUNDAMENTO = {
   descuento:  'Código de Trabajo: descuentos permitidos al salario',
   alimentos:  'Resolución judicial de alimentos',
   enterada:   'Ley del Seguro Social y Ley del Sistema de Ahorro para Pensiones',
-  embargo:    'Código Procesal Civil y Mercantil: embargo de salarios'
+  embargo:    'Código Procesal Civil y Mercantil: embargo de salarios',
+  servicios:  'Código de Trabajo: contrato individual de trabajo y subordinación',
+  cotizaciones: 'Ley del Seguro Social y Ley del Sistema de Ahorro para Pensiones'
 };
 
 const TIPOS_DESCUENTO = [
@@ -225,6 +234,7 @@ function leer() {
   return {
     nombre: $('nombre').value.trim(),
     cargo: $('cargo').value.trim(),
+    modalidad: $('modalidad').value,
     tipo: $('tipo').value,
     bruto: num($('bruto').value),
     enterada: $('enterada').value,
@@ -250,22 +260,30 @@ function calcular(d) {
   const alertas = [];
   const min = PARAMS.minimos[d.tipo].valor;
 
-  const isss = r2(Math.min(d.bruto, PARAMS.isssTecho) * PARAMS.isssPct / 100);
-  const afp  = r2(Math.min(d.bruto, PARAMS.afpTecho)  * PARAMS.afpPct  / 100);
+  const servicios = d.modalidad === 'servicios';
+  const isss = servicios ? 0 : r2(Math.min(d.bruto, PARAMS.isssTecho) * PARAMS.isssPct / 100);
+  const afp  = servicios ? 0 : r2(Math.min(d.bruto, PARAMS.afpTecho)  * PARAMS.afpPct  / 100);
   const cotiz = r2(isss + afp);
 
   // Alerta 1: salario bajo el mínimo
-  if (d.bruto > 0 && d.bruto < min) {
+  if (!servicios && d.bruto > 0 && d.bruto < min) {
     alertas.push({ nivel: 'alta',
       texto: 'ALERTA: El salario registrado está por debajo del salario mínimo aplicable.',
       detalle: `Registrado ${usd(d.bruto)}; mínimo para ${PARAMS.minimos[d.tipo].nombre}: ${usd(min)}. Fundamento a verificar: ${FUNDAMENTO.minimo}.` });
   }
 
   // Alerta 2: cotización descontada pero no enterada
-  if (d.bruto > 0 && d.enterada === 'no') {
+  if (!servicios && d.bruto > 0 && d.enterada === 'no') {
     alertas.push({ nivel: 'alta',
       texto: 'ALERTA: Se descontó una cotización al trabajador, pero el sistema registra que no ha sido enterada.',
       detalle: `Descontado: ISSS ${usd(isss)} y AFP ${usd(afp)}. Fundamento a verificar: ${FUNDAMENTO.enterada}.` });
+  }
+
+  // Prestación de servicios: no aplican ISSS, AFP ni salario mínimo
+  if (servicios && d.bruto > 0) {
+    alertas.push({ nivel: 'info',
+      texto: 'AVISO: Prestación de servicios: no se aplican ISSS, AFP ni salario mínimo.',
+      detalle: 'Verifica que el contrato no tenga subordinación ni horario fijo; de lo contrario podría tratarse de una relación laboral. Fundamento a verificar: ' + FUNDAMENTO.servicios + '.' });
   }
 
   // Pensión alimenticia
@@ -306,7 +324,7 @@ function calcular(d) {
       detalle: `Total de descuentos ${usd(totalDesc)} contra un bruto de ${usd(d.bruto)}. Revisa los montos.` });
   }
 
-  return { isss, afp, alim, otros, totalDesc, liquido, alertas, min };
+  return { isss, afp, alim, otros, totalDesc, liquido, alertas, min, servicios };
 }
 
 /* =====================================================================
@@ -314,10 +332,11 @@ function calcular(d) {
    ===================================================================== */
 function renderAlertas(res, d) {
   const cont = $('alertas'); cont.replaceChildren();
-  if (d.bruto <= 0) { cont.append(el('div', { className: 'sin-alertas', text: 'Ingresa el salario bruto para evaluar alertas.' })); return; }
-  if (!res.alertas.length) { cont.append(el('div', { className: 'sin-alertas', text: 'Sin alertas: no se detectó ninguna situación jurídicamente relevante.' })); return; }
+  if (alertaParametro) cont.append(el('div', { className: 'alerta alta' }, el('strong', { text: alertaParametro.texto }), el('small', { text: alertaParametro.detalle })));
+  if (d.bruto <= 0) { if (!alertaParametro) cont.append(el('div', { className: 'sin-alertas', text: 'Ingresa el salario bruto para evaluar alertas.' })); return; }
+  if (!res.alertas.length) { if (!alertaParametro) cont.append(el('div', { className: 'sin-alertas', text: 'Sin alertas: no se detectó ninguna situación jurídicamente relevante.' })); return; }
   res.alertas.forEach(a => cont.append(
-    el('div', { className: 'alerta ' + (a.nivel === 'alta' ? 'alta' : '') },
+    el('div', { className: 'alerta ' + (a.nivel === 'alta' ? 'alta' : a.nivel === 'info' ? 'info' : '') },
       el('strong', { text: a.texto }), el('small', { text: a.detalle }))
   ));
 }
@@ -335,12 +354,17 @@ function renderBoleta(res, d) {
 
   cont.append(el('div', { className: 'persona' },
     el('b', { text: d.nombre || 'Trabajador sin nombre' }),
-    el('span', { text: ' · ' + (d.cargo || 'Sin cargo') + ' · ' + PARAMS.minimos[d.tipo].nombre })));
+    el('span', { text: ' · ' + (d.cargo || 'Sin cargo') + ' · ' + (res.servicios ? 'Prestación de servicios' : PARAMS.minimos[d.tipo].nombre) })));
 
   const t = el('table', { className: 'boleta' });
-  t.append(fila('Salario bruto', usd(d.bruto)));
-  t.append(fila(`ISSS (${PARAMS.isssPct}% hasta ${usd(PARAMS.isssTecho)})`, '− ' + usd(res.isss)));
-  t.append(fila(`AFP (${PARAMS.afpPct}%)`, '− ' + usd(res.afp)));
+  t.append(fila(res.servicios ? 'Honorarios' : 'Salario bruto', usd(d.bruto)));
+  if (res.servicios) {
+    t.append(fila('ISSS', 'No aplica'));
+    t.append(fila('AFP', 'No aplica'));
+  } else {
+    t.append(fila(`ISSS (${PARAMS.isssPct}% hasta ${usd(PARAMS.isssTecho)})`, '− ' + usd(res.isss)));
+    t.append(fila(`AFP (${PARAMS.afpPct}%)`, '− ' + usd(res.afp)));
+  }
   if (d.alimentos.activo) t.append(fila('Pensión alimenticia', '− ' + usd(res.alim)));
   res.otros.forEach(o => {
     if (o.aplicado) t.append(fila(o.nombre, '− ' + usd(o.monto)));
@@ -352,7 +376,7 @@ function renderBoleta(res, d) {
   cont.append(el('div', { className: 'liquido' }, el('span', { text: 'Salario líquido' }), el('b', { className: 'num', text: usd(res.liquido) })));
 
   const patronal = r2(Math.min(d.bruto, PARAMS.isssTecho) * PARAMS.isssPatronPct / 100 + Math.min(d.bruto, PARAMS.afpTecho) * PARAMS.afpPatronPct / 100);
-  cont.append(el('p', { className: 'patronal', text: `Aporte patronal (ISSS ${PARAMS.isssPatronPct}% y AFP ${PARAMS.afpPatronPct}%): ${usd(patronal)}. No se descuenta al trabajador.` }));
+  if (!res.servicios) cont.append(el('p', { className: 'patronal', text: `Aporte patronal (ISSS ${PARAMS.isssPatronPct}% y AFP ${PARAMS.afpPatronPct}%): ${usd(patronal)}. No se descuenta al trabajador.` }));
 }
 
 function actualizar() {
@@ -392,24 +416,57 @@ function addOtro(o = {}) {
 /* =====================================================================
    PARÁMETROS EDITABLES
    ===================================================================== */
+// Valores legales de referencia: no se pueden cambiar desde la interfaz
+const LEGAL = {
+  isssPct: PARAMS.isssPct, isssTecho: PARAMS.isssTecho,
+  afpPct: PARAMS.afpPct, afpTecho: PARAMS.afpTecho,
+  isssPatronPct: PARAMS.isssPatronPct, afpPatronPct: PARAMS.afpPatronPct
+};
+let alertaParametro = null, timerParametro = null;
+
+function bloquearParametro(etiqueta, clave, input) {
+  // Restaura el valor legal y avisa que el cambio no está permitido
+  PARAMS[clave] = LEGAL[clave];
+  input.value = LEGAL[clave];
+  alertaParametro = {
+    texto: 'ALERTA: Este valor está fijado por ley y no puede modificarse desde el sistema.',
+    detalle: `Se intentó cambiar "${etiqueta}". Se mantiene el valor legal (${LEGAL[clave]}). Fundamento a verificar: ${FUNDAMENTO.cotizaciones}.`
+  };
+  $('params-msg').replaceChildren(
+    el('div', { className: 'alerta alta' }, el('strong', { text: alertaParametro.texto }), el('small', { text: alertaParametro.detalle })));
+  clearTimeout(timerParametro);
+  timerParametro = setTimeout(() => { alertaParametro = null; $('params-msg').replaceChildren(); actualizar(); }, 8000);
+  actualizar();
+}
+
 function montarParametros() {
   const tipo = $('tipo'); tipo.replaceChildren();
   Object.entries(PARAMS.minimos).forEach(([k, m]) => tipo.append(el('option', { value: k, text: m.nombre })));
 
   const cont = $('params'); cont.replaceChildren();
-  const campo = (label, valor, onChange) => {
-    const i = el('input', { type: 'number', step: '0.01', value: valor });
-    i.addEventListener('input', () => { onChange(num(i.value)); actualizar(); });
-    return el('div', {}, el('label', { text: label }), i);
+
+  const fijo = (etiqueta, clave) => {
+    const i = el('input', { type: 'number', step: '0.01', value: LEGAL[clave] });
+    i.addEventListener('input', () => bloquearParametro(etiqueta, clave, i));
+    return el('div', {}, el('label', { text: etiqueta }), i);
   };
+  const editable = (etiqueta, m) => {
+    const i = el('input', { type: 'number', step: '0.01', value: m.valor });
+    i.addEventListener('input', () => { m.valor = num(i.value); actualizar(); });
+    return el('div', {}, el('label', { text: etiqueta }), i);
+  };
+
   cont.append(
-    campo('ISSS trabajador (%)', PARAMS.isssPct, v => PARAMS.isssPct = v),
-    campo('Techo ISSS (USD)', PARAMS.isssTecho, v => PARAMS.isssTecho = v),
-    campo('AFP trabajador (%)', PARAMS.afpPct, v => PARAMS.afpPct = v),
-    campo('Techo AFP (USD)', PARAMS.afpTecho, v => PARAMS.afpTecho = v)
+    el('p', { className: 'sub', text: 'Fijados por ley (no modificables)' }),
+    fijo('ISSS trabajador (%)', 'isssPct'),
+    fijo('Techo ISSS (USD)', 'isssTecho'),
+    fijo('AFP trabajador (%)', 'afpPct'),
+    fijo('Techo AFP (USD)', 'afpTecho'),
+    fijo('ISSS patronal (%)', 'isssPatronPct'),
+    fijo('AFP patronal (%)', 'afpPatronPct'),
+    el('p', { className: 'sub', text: 'Salario mínimo por sector (verificar con el decreto)' })
   );
-  Object.values(PARAMS.minimos).forEach(m =>
-    cont.append(campo('Mínimo: ' + m.nombre + ' (USD)', m.valor, v => m.valor = v)));
+  Object.values(PARAMS.minimos).forEach(m => cont.append(editable('Mínimo: ' + m.nombre + ' (USD)', m)));
 }
 
 /* =====================================================================
@@ -418,6 +475,7 @@ function montarParametros() {
 const CASOS = {
   normal:  { nombre: 'María López', cargo: 'Cajera', tipo: 'comercio', bruto: 520, enterada: 'si', alim: null, otros: [] },
   minimo:  { nombre: 'Carlos Ramos', cargo: 'Auxiliar de bodega', tipo: 'comercio', bruto: 350, enterada: 'no', alim: null, otros: [] },
+  servicios:{ nombre: 'Luis Hernández', cargo: 'Diseñador gráfico', modalidad: 'servicios', tipo: 'comercio', bruto: 800, enterada: 'si', alim: null, otros: [] },
   complejo:{ nombre: 'Ana Martínez', cargo: 'Supervisora', tipo: 'industria', bruto: 1200, enterada: 'si',
              alim: { modo: 'pct', valor: 25, base: 'neto-cotiz' },
              otros: [
@@ -427,7 +485,7 @@ const CASOS = {
 };
 
 function cargarCaso(c) {
-  $('nombre').value = c.nombre; $('cargo').value = c.cargo; $('tipo').value = c.tipo;
+  $('nombre').value = c.nombre; $('cargo').value = c.cargo; $('tipo').value = c.tipo; $('modalidad').value = c.modalidad || 'fijo';
   $('bruto').value = c.bruto; $('enterada').value = c.enterada;
   $('alim-activo').checked = !!c.alim;
   if (c.alim) { $('alim-modo').value = c.alim.modo; $('alim-valor').value = c.alim.valor; $('alim-base').value = c.alim.base; }
@@ -445,6 +503,9 @@ function limpiar() {
 function sincronizarAlim() {
   $('alim-campos').hidden = !$('alim-activo').checked;
   $('alim-valor-lbl').textContent = $('alim-modo').value === 'pct' ? 'Porcentaje (%)' : 'Monto mensual (USD)';
+  const serv = $('modalidad').value === 'servicios';
+  $('enterada-wrap').hidden = serv;
+  $('bruto-lbl').textContent = serv ? 'Honorarios mensuales (USD)' : 'Salario bruto mensual (USD)';
 }
 
 /* =====================================================================
@@ -487,8 +548,8 @@ function agregarAPlanilla() {
     estado.textContent = 'Completa el nombre y el salario bruto para agregar al trabajador.';
     return;
   }
-  planilla.push({ nombre: d.nombre, cargo: d.cargo || 'Sin cargo', tipo: PARAMS.minimos[d.tipo].nombre,
-                  bruto: d.bruto, desc: res.totalDesc, liquido: res.liquido, alertas: res.alertas.length });
+  planilla.push({ nombre: d.nombre, cargo: d.cargo || 'Sin cargo', tipo: d.modalidad === 'servicios' ? 'Prestación de servicios' : PARAMS.minimos[d.tipo].nombre,
+                  bruto: d.bruto, desc: res.totalDesc, liquido: res.liquido, alertas: res.alertas.filter(a => a.nivel !== 'info').length });
   estado.className = '';
   estado.textContent = `${d.nombre} se agregó a la planilla.`;
   renderPlanilla();
