@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prototipo de planilla</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EDF0F2; --panel:#FFFFFF; --ink:#17222D; --muted:#5B6975; --line:#CBD3DA;
+  --brand:#0E6B6B; --brand-soft:#E3F1F1;
+  --warn:#8A4B00; --warn-bg:#FFF3E0; --warn-line:#D98A1F;
+  --bad:#A6231B; --bad-bg:#FDECEA; --bad-line:#C93A30;
+  --r:6px;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+.num{font-variant-numeric:tabular-nums}
+header{padding:22px clamp(16px,4vw,40px) 6px;display:flex;flex-wrap:wrap;gap:8px 24px;align-items:baseline;justify-content:space-between}
+h1{font-size:26px;font-weight:600;letter-spacing:-.01em;margin:0}
+header p{margin:0;color:var(--muted);max-width:60ch}
+main{padding:14px clamp(16px,4vw,40px) 48px;display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:20px;align-items:start}
+@media (max-width:920px){main{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.panel+.panel{margin-top:20px}
+h2{font-size:16px;font-weight:600;margin:0 0 12px}
+h3{font-size:14px;font-weight:600;margin:18px 0 8px}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+input,select,button{font:inherit;color:inherit}
+input[type=text],input[type=number],select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r);background:#fff}
+input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid2 .full{grid-column:1/-1}
+@media (max-width:520px){.grid2{grid-template-columns:1fr}}
+.check{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--ink);margin:0}
+.check input{width:auto}
+button{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:var(--r);padding:8px 12px}
+button:hover{border-color:var(--brand)}
+button.primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:500}
+button.primary:hover{filter:brightness(1.08)}
+button.link{border:0;background:none;color:var(--brand);padding:2px 4px;text-decoration:underline}
+.casos{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+.casos span{font-size:13px;color:var(--muted)}
+.fila{border:1px solid var(--line);border-radius:var(--r);padding:10px;margin-bottom:8px;background:#FAFBFC}
+.fila .grid2{grid-template-columns:2fr 2fr 1fr}
+@media (max-width:520px){.fila .grid2{grid-template-columns:1fr}}
+.fila-pie{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+details{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+summary{cursor:pointer;font-weight:500}
+.aviso{font-size:13px;color:var(--muted);margin:8px 0}
+.params{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+/* Alertas */
+#alertas{display:grid;gap:8px;margin-bottom:16px}
+.alerta{border-left:4px solid var(--warn-line);background:var(--warn-bg);color:var(--warn);padding:10px 12px;border-radius:0 var(--r) var(--r) 0}
+.alerta.alta{border-left-color:var(--bad-line);background:var(--bad-bg);color:var(--bad)}
+.alerta strong{display:block;font-weight:600}
+.alerta small{display:block;margin-top:2px;opacity:.85}
+.sin-alertas{color:var(--muted);border:1px dashed var(--line);border-radius:var(--r);padding:10px 12px}
+/* Boleta */
+.boleta{width:100%;border-collapse:collapse}
+.boleta td{padding:7px 0;border-bottom:1px dashed var(--line)}
+.boleta td:last-child{text-align:right;white-space:nowrap}
+.boleta .sub{color:var(--muted);font-size:13px}
+.boleta .no-aplicado td{color:var(--muted);text-decoration:line-through}
+.boleta .no-aplicado td small{text-decoration:none;display:block}
+.total td{font-weight:600;border-bottom:1px solid var(--ink)}
+.liquido{margin-top:12px;background:var(--brand);color:#fff;border-radius:var(--r);padding:14px 16px;display:flex;justify-content:space-between;align-items:baseline}
+.liquido b{font-size:28px;font-weight:600}
+.patronal{font-size:13px;color:var(--muted);margin-top:10px}
+.persona{margin-bottom:10px}
+.persona b{font-size:17px}
+.persona span{color:var(--muted)}
+/* Tabla planilla */
+.tabla-wrap{overflow-x:auto}
+table.planilla{width:100%;border-collapse:collapse;min-width:560px}
+table.planilla th,table.planilla td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left}
+table.planilla th{font-size:13px;color:var(--muted);font-weight:500}
+table.planilla td.r,table.planilla th.r{text-align:right}
+table.planilla tfoot td{font-weight:600;border-top:2px solid var(--ink);border-bottom:0}
+.badge{display:inline-block;min-width:22px;text-align:center;border-radius:99px;padding:0 8px;font-size:13px;background:var(--brand-soft);color:var(--brand)}
+.badge.hay{background:var(--warn-bg);color:var(--warn)}
+#estado{min-height:1.4em;font-size:14px;margin-top:8px}
+#estado.err{color:var(--bad)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Prototipo de planilla</h1>
+  <p>Registra a un trabajador, revisa sus deducciones y lee las alertas jurídicas antes de agregarlo a la planilla.</p>
+</header>
+
+<main>
+  <!-- ===================== COLUMNA IZQUIERDA: DATOS ===================== -->
+  <section>
+    <div class="panel">
+      <h2>Datos del trabajador</h2>
+
+      <div class="casos">
+        <span>Cargar caso de prueba:</span>
+        <button type="button" data-caso="normal">Sin novedades</button>
+        <button type="button" data-caso="minimo">Bajo el mínimo</button>
+        <button type="button" data-caso="complejo">Alimentos y embargo</button>
+        <button type="button" class="link" id="limpiar">Limpiar</button>
+      </div>
+
+      <div class="grid2">
+        <div><label for="nombre">Nombre</label><input type="text" id="nombre" autocomplete="off"></div>
+        <div><label for="cargo">Cargo</label><input type="text" id="cargo" autocomplete="off"></div>
+        <div><label for="tipo">Tipo de trabajador</label><select id="tipo"></select></div>
+        <div><label for="bruto">Salario bruto mensual (USD)</label><input type="number" id="bruto" min="0" step="0.01" inputmode="decimal"></div>
+        <div class="full">
+          <label for="enterada">¿Las cotizaciones ISSS y AFP de este trabajador ya fueron enteradas (pagadas) a las instituciones?</label>
+          <select id="enterada">
+            <option value="si">Sí, enteradas</option>
+            <option value="no">No, aún no se enteran</option>
+          </select>
+        </div>
+      </div>
+
+      <h3>Pensión alimenticia</h3>
+      <label class="check"><input type="checkbox" id="alim-activo"> Existe orden de retención por alimentos</label>
+      <div class="grid2" id="alim-campos" style="margin-top:10px" hidden>
+        <div><label for="alim-modo">La orden fija</label>
+          <select id="alim-modo"><option value="pct">Un porcentaje</option><option value="monto">Un monto fijo</option></select></div>
+        <div><label for="alim-valor" id="alim-valor-lbl">Porcentaje (%)</label><input type="number" id="alim-valor" min="0" step="0.01"></div>
+        <div class="full"><label for="alim-base">Base del porcentaje</label>
+          <select id="alim-base"><option value="neto-cotiz">Salario bruto menos ISSS y AFP</option><option value="bruto">Salario bruto</option></select></div>
+      </div>
+
+      <h3>Otros descuentos</h3>
+      <div id="otros"></div>
+      <button type="button" id="add-otro">Agregar descuento</button>
+
+      <details>
+        <summary>Parámetros legales (editables)</summary>
+        <p class="aviso">Verifica cada valor con la norma vigente antes de la presentación. Los salarios mínimos de esta tabla son valores iniciales de referencia.</p>
+        <div class="params" id="params"></div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ===================== COLUMNA DERECHA: RESULTADO ===================== -->
+  <section>
+    <div class="panel">
+      <h2>Alertas</h2>
+      <div id="alertas" aria-live="polite"></div>
+
+      <h2>Boleta de pago</h2>
+      <div id="boleta"></div>
+
+      <button type="button" class="primary" id="agregar" style="margin-top:16px">Agregar a la planilla</button>
+      <div id="estado" role="status"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Planilla del período</h2>
+      <div class="tabla-wrap">
+        <table class="planilla">
+          <thead><tr>
+            <th>Trabajador</th><th>Tipo</th><th class="r">Bruto</th><th class="r">Descuentos</th><th class="r">Líquido</th><th class="r">Alertas</th><th></th>
+          </tr></thead>
+          <tbody id="planilla-body"></tbody>
+          <tfoot id="planilla-foot"></tfoot>
+        </table>
+      </div>
+      <p class="aviso" id="planilla-vacia">Aún no hay trabajadores en la planilla.</p>
+    </div>
+  </section>
+</main>
+
+<script>
+/* =====================================================================
+   PARÁMETROS — el equipo debe verificarlos con la norma vigente
+   ===================================================================== */
+const PARAMS = {
+  isssPct: 3,        isssTecho: 1000,     // ISSS trabajador
+  afpPct: 7.25,      afpTecho: 7045.06,   // AFP trabajador
+  isssPatronPct: 7.5, afpPatronPct: 8.75, // Solo informativo (no se descuenta)
+  minimos: {
+    comercio:  { nombre: 'Comercio y servicios', valor: 408.80 },
+    industria: { nombre: 'Industria',            valor: 408.80 }, // TODO equipo: verificar
+    maquila:   { nombre: 'Maquila textil',       valor: 408.80 }  // TODO equipo: verificar
+  }
+};
+
+/* TODO equipo: reemplazar por el artículo exacto de cada norma */
+const FUNDAMENTO = {
+  minimo:     'Decreto de salario mínimo vigente (MTPS)',
+  descuento:  'Código de Trabajo: descuentos permitidos al salario',
+  alimentos:  'Resolución judicial de alimentos',
+  enterada:   'Ley del Seguro Social y Ley del Sistema de Ahorro para Pensiones',
+  embargo:    'Código Procesal Civil y Mercantil: embargo de salarios'
+};
+
+const TIPOS_DESCUENTO = [
+  { v: 'deuda',    t: 'Deuda o préstamo' },
+  { v: 'embargo',  t: 'Embargo por deuda ordinaria' },
+  { v: 'anticipo', t: 'Anticipo de salario' },
+  { v: 'otro',     t: 'Otro' }
+];
+
+/* =====================================================================
+   UTILIDADES
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
+const usd = n => new Intl.NumberFormat('es-SV', { style: 'currency', currency: 'USD' }).format(n);
+const el = (tag, props = {}, ...kids) => {
+  const e = document.createElement(tag);
+  Object.entries(props).forEach(([k, v]) => k === 'text' ? e.textContent = v : e[k] = v);
+  kids.forEach(k => e.append(k));
+  return e;
+};
+
+/* =====================================================================
+   LECTURA DEL FORMULARIO
+   ===================================================================== */
+function leer() {
+  return {
+    nombre: $('nombre').value.trim(),
+    cargo: $('cargo').value.trim(),
+    tipo: $('tipo').value,
+    bruto: num($('bruto').value),
+    enterada: $('enterada').value,
+    alimentos: {
+      activo: $('alim-activo').checked,
+      modo: $('alim-modo').value,
+      valor: num($('alim-valor').value),
+      base: $('alim-base').value
+    },
+    otros: [...document.querySelectorAll('#otros .fila')].map(f => ({
+      concepto: f.querySelector('.o-concepto').value.trim(),
+      tipo: f.querySelector('.o-tipo').value,
+      monto: num(f.querySelector('.o-monto').value),
+      autorizado: f.querySelector('.o-aut').checked
+    }))
+  };
+}
+
+/* =====================================================================
+   MOTOR DE CÁLCULO + ALERTAS
+   ===================================================================== */
+function calcular(d) {
+  const alertas = [];
+  const min = PARAMS.minimos[d.tipo].valor;
+
+  const isss = r2(Math.min(d.bruto, PARAMS.isssTecho) * PARAMS.isssPct / 100);
+  const afp  = r2(Math.min(d.bruto, PARAMS.afpTecho)  * PARAMS.afpPct  / 100);
+  const cotiz = r2(isss + afp);
+
+  // Alerta 1: salario bajo el mínimo
+  if (d.bruto > 0 && d.bruto < min) {
+    alertas.push({ nivel: 'alta',
+      texto: 'ALERTA: El salario registrado está por debajo del salario mínimo aplicable.',
+      detalle: `Registrado ${usd(d.bruto)}; mínimo para ${PARAMS.minimos[d.tipo].nombre}: ${usd(min)}. Fundamento a verificar: ${FUNDAMENTO.minimo}.` });
+  }
+
+  // Alerta 2: cotización descontada pero no enterada
+  if (d.bruto > 0 && d.enterada === 'no') {
+    alertas.push({ nivel: 'alta',
+      texto: 'ALERTA: Se descontó una cotización al trabajador, pero el sistema registra que no ha sido enterada.',
+      detalle: `Descontado: ISSS ${usd(isss)} y AFP ${usd(afp)}. Fundamento a verificar: ${FUNDAMENTO.enterada}.` });
+  }
+
+  // Pensión alimenticia
+  let alim = 0;
+  if (d.alimentos.activo) {
+    const base = d.alimentos.base === 'bruto' ? d.bruto : Math.max(d.bruto - cotiz, 0);
+    alim = d.alimentos.modo === 'pct' ? r2(base * d.alimentos.valor / 100) : r2(d.alimentos.valor);
+    alertas.push({ nivel: 'media',
+      texto: 'ALERTA: Existe una orden de retención por alimentos.',
+      detalle: `Retención de ${usd(alim)} incluida en la boleta. Fundamento a verificar: ${FUNDAMENTO.alimentos}.` });
+  }
+
+  // Otros descuentos
+  const otros = d.otros.filter(o => o.monto > 0 || o.concepto).map(o => {
+    const nombre = o.concepto || 'Descuento sin concepto';
+    const aplicado = o.autorizado && o.monto > 0;
+    if (!o.autorizado) {
+      alertas.push({ nivel: 'alta',
+        texto: 'ALERTA: Se está intentando realizar un descuento que requiere fundamento legal o autorización.',
+        detalle: `"${nombre}" por ${usd(o.monto)} no se aplicó a la boleta. Fundamento a verificar: ${FUNDAMENTO.descuento}.` });
+    }
+    if (o.tipo === 'embargo') {
+      alertas.push({ nivel: 'media',
+        texto: 'ALERTA: El embargo solicitado corresponde a una deuda ordinaria y debe verificarse el límite legal aplicable.',
+        detalle: `"${nombre}" por ${usd(o.monto)}. Fundamento a verificar: ${FUNDAMENTO.embargo}.` });
+    }
+    return { ...o, nombre, aplicado };
+  });
+
+  const otrosAplicados = r2(otros.filter(o => o.aplicado).reduce((s, o) => s + o.monto, 0));
+  const totalDesc = r2(cotiz + alim + otrosAplicados);
+  const liquido = r2(d.bruto - totalDesc);
+
+  // Alerta 3: descuentos exceden lo disponible
+  if (d.bruto > 0 && liquido < 0) {
+    alertas.push({ nivel: 'alta',
+      texto: 'ALERTA: Los descuentos superan el salario disponible.',
+      detalle: `Total de descuentos ${usd(totalDesc)} contra un bruto de ${usd(d.bruto)}. Revisa los montos.` });
+  }
+
+  return { isss, afp, alim, otros, totalDesc, liquido, alertas, min };
+}
+
+/* =====================================================================
+   RENDER: ALERTAS Y BOLETA
+   ===================================================================== */
+function renderAlertas(res, d) {
+  const cont = $('alertas'); cont.replaceChildren();
+  if (d.bruto <= 0) { cont.append(el('div', { className: 'sin-alertas', text: 'Ingresa el salario bruto para evaluar alertas.' })); return; }
+  if (!res.alertas.length) { cont.append(el('div', { className: 'sin-alertas', text: 'Sin alertas: no se detectó ninguna situación jurídicamente relevante.' })); return; }
+  res.alertas.forEach(a => cont.append(
+    el('div', { className: 'alerta ' + (a.nivel === 'alta' ? 'alta' : '') },
+      el('strong', { text: a.texto }), el('small', { text: a.detalle }))
+  ));
+}
+
+function fila(concepto, monto, opts = {}) {
+  const td1 = el('td', {}, el('span', { text: concepto }));
+  if (opts.nota) td1.append(el('small', { text: opts.nota }));
+  const tr = el('tr', { className: opts.clase || '' }, td1, el('td', { className: 'num', text: monto }));
+  return tr;
+}
+
+function renderBoleta(res, d) {
+  const cont = $('boleta'); cont.replaceChildren();
+  if (d.bruto <= 0) { cont.append(el('p', { className: 'aviso', text: 'Aquí aparecerá la boleta cuando ingreses un salario bruto.' })); return; }
+
+  cont.append(el('div', { className: 'persona' },
+    el('b', { text: d.nombre || 'Trabajador sin nombre' }),
+    el('span', { text: ' · ' + (d.cargo || 'Sin cargo') + ' · ' + PARAMS.minimos[d.tipo].nombre })));
+
+  const t = el('table', { className: 'boleta' });
+  t.append(fila('Salario bruto', usd(d.bruto)));
+  t.append(fila(`ISSS (${PARAMS.isssPct}% hasta ${usd(PARAMS.isssTecho)})`, '− ' + usd(res.isss)));
+  t.append(fila(`AFP (${PARAMS.afpPct}%)`, '− ' + usd(res.afp)));
+  if (d.alimentos.activo) t.append(fila('Pensión alimenticia', '− ' + usd(res.alim)));
+  res.otros.forEach(o => {
+    if (o.aplicado) t.append(fila(o.nombre, '− ' + usd(o.monto)));
+    else t.append(fila(o.nombre, usd(o.monto), { clase: 'no-aplicado', nota: 'No aplicado: falta fundamento legal o autorización' }));
+  });
+  t.append(fila('Total de descuentos', '− ' + usd(res.totalDesc), { clase: 'total' }));
+  cont.append(t);
+
+  cont.append(el('div', { className: 'liquido' }, el('span', { text: 'Salario líquido' }), el('b', { className: 'num', text: usd(res.liquido) })));
+
+  const patronal = r2(Math.min(d.bruto, PARAMS.isssTecho) * PARAMS.isssPatronPct / 100 + Math.min(d.bruto, PARAMS.afpTecho) * PARAMS.afpPatronPct / 100);
+  cont.append(el('p', { className: 'patronal', text: `Aporte patronal (ISSS ${PARAMS.isssPatronPct}% y AFP ${PARAMS.afpPatronPct}%): ${usd(patronal)}. No se descuenta al trabajador.` }));
+}
+
+function actualizar() {
+  const d = leer();
+  const res = calcular(d);
+  renderAlertas(res, d);
+  renderBoleta(res, d);
+  return { d, res };
+}
+
+/* =====================================================================
+   DESCUENTOS DINÁMICOS
+   ===================================================================== */
+function addOtro(o = {}) {
+  const f = el('div', { className: 'fila' });
+  const concepto = el('input', { type: 'text', className: 'o-concepto', value: o.concepto || '' });
+  const tipo = el('select', { className: 'o-tipo' });
+  TIPOS_DESCUENTO.forEach(x => tipo.append(el('option', { value: x.v, text: x.t })));
+  tipo.value = o.tipo || 'deuda';
+  const monto = el('input', { type: 'number', className: 'o-monto', min: 0, step: '0.01', value: o.monto ?? '' });
+  const aut = el('input', { type: 'checkbox', className: 'o-aut', checked: !!o.autorizado });
+  const quitar = el('button', { type: 'button', className: 'link', text: 'Quitar' });
+  quitar.addEventListener('click', () => { f.remove(); actualizar(); });
+
+  f.append(
+    el('div', { className: 'grid2' },
+      el('div', {}, el('label', { text: 'Concepto' }), concepto),
+      el('div', {}, el('label', { text: 'Tipo' }), tipo),
+      el('div', {}, el('label', { text: 'Monto' }), monto)),
+    el('div', { className: 'fila-pie' },
+      el('label', { className: 'check' }, aut, document.createTextNode('Con autorización o fundamento legal')),
+      quitar)
+  );
+  $('otros').append(f);
+}
+
+/* =====================================================================
+   PARÁMETROS EDITABLES
+   ===================================================================== */
+function montarParametros() {
+  const tipo = $('tipo'); tipo.replaceChildren();
+  Object.entries(PARAMS.minimos).forEach(([k, m]) => tipo.append(el('option', { value: k, text: m.nombre })));
+
+  const cont = $('params'); cont.replaceChildren();
+  const campo = (label, valor, onChange) => {
+    const i = el('input', { type: 'number', step: '0.01', value: valor });
+    i.addEventListener('input', () => { onChange(num(i.value)); actualizar(); });
+    return el('div', {}, el('label', { text: label }), i);
+  };
+  cont.append(
+    campo('ISSS trabajador (%)', PARAMS.isssPct, v => PARAMS.isssPct = v),
+    campo('Techo ISSS (USD)', PARAMS.isssTecho, v => PARAMS.isssTecho = v),
+    campo('AFP trabajador (%)', PARAMS.afpPct, v => PARAMS.afpPct = v),
+    campo('Techo AFP (USD)', PARAMS.afpTecho, v => PARAMS.afpTecho = v)
+  );
+  Object.values(PARAMS.minimos).forEach(m =>
+    cont.append(campo('Mínimo: ' + m.nombre + ' (USD)', m.valor, v => m.valor = v)));
+}
+
+/* =====================================================================
+   CASOS DE PRUEBA
+   ===================================================================== */
+const CASOS = {
+  normal:  { nombre: 'María López', cargo: 'Cajera', tipo: 'comercio', bruto: 520, enterada: 'si', alim: null, otros: [] },
+  minimo:  { nombre: 'Carlos Ramos', cargo: 'Auxiliar de bodega', tipo: 'comercio', bruto: 350, enterada: 'no', alim: null, otros: [] },
+  complejo:{ nombre: 'Ana Martínez', cargo: 'Supervisora', tipo: 'industria', bruto: 1200, enterada: 'si',
+             alim: { modo: 'pct', valor: 25, base: 'neto-cotiz' },
+             otros: [
+               { concepto: 'Préstamo interno', tipo: 'deuda', monto: 60, autorizado: false },
+               { concepto: 'Embargo Juzgado Civil', tipo: 'embargo', monto: 100, autorizado: true }
+             ] }
+};
+
+function cargarCaso(c) {
+  $('nombre').value = c.nombre; $('cargo').value = c.cargo; $('tipo').value = c.tipo;
+  $('bruto').value = c.bruto; $('enterada').value = c.enterada;
+  $('alim-activo').checked = !!c.alim;
+  if (c.alim) { $('alim-modo').value = c.alim.modo; $('alim-valor').value = c.alim.valor; $('alim-base').value = c.alim.base; }
+  else { $('alim-valor').value = ''; }
+  $('otros').replaceChildren();
+  c.otros.forEach(addOtro);
+  sincronizarAlim(); actualizar();
+}
+
+function limpiar() {
+  cargarCaso({ nombre: '', cargo: '', tipo: Object.keys(PARAMS.minimos)[0], bruto: '', enterada: 'si', alim: null, otros: [] });
+  $('estado').textContent = '';
+}
+
+function sincronizarAlim() {
+  $('alim-campos').hidden = !$('alim-activo').checked;
+  $('alim-valor-lbl').textContent = $('alim-modo').value === 'pct' ? 'Porcentaje (%)' : 'Monto mensual (USD)';
+}
+
+/* =====================================================================
+   PLANILLA (lista en memoria)
+   ===================================================================== */
+const planilla = [];
+
+function renderPlanilla() {
+  const body = $('planilla-body'), foot = $('planilla-foot');
+  body.replaceChildren(); foot.replaceChildren();
+  $('planilla-vacia').hidden = planilla.length > 0;
+  planilla.forEach((p, i) => {
+    const quitar = el('button', { type: 'button', className: 'link', text: 'Quitar' });
+    quitar.addEventListener('click', () => { planilla.splice(i, 1); renderPlanilla(); });
+    body.append(el('tr', {},
+      el('td', {}, el('div', { text: p.nombre }), el('small', { className: 'aviso', text: p.cargo })),
+      el('td', { text: p.tipo }),
+      el('td', { className: 'r num', text: usd(p.bruto) }),
+      el('td', { className: 'r num', text: usd(p.desc) }),
+      el('td', { className: 'r num', text: usd(p.liquido) }),
+      el('td', { className: 'r' }, el('span', { className: 'badge' + (p.alertas ? ' hay' : ''), text: p.alertas })),
+      el('td', { className: 'r' }, quitar)));
+  });
+  if (planilla.length) {
+    const s = k => planilla.reduce((a, p) => a + p[k], 0);
+    foot.append(el('tr', {},
+      el('td', { text: 'Totales' }), el('td'),
+      el('td', { className: 'r num', text: usd(s('bruto')) }),
+      el('td', { className: 'r num', text: usd(s('desc')) }),
+      el('td', { className: 'r num', text: usd(s('liquido')) }),
+      el('td', { className: 'r', text: String(s('alertas')) }), el('td')));
+  }
+}
+
+function agregarAPlanilla() {
+  const { d, res } = actualizar();
+  const estado = $('estado');
+  if (!d.nombre || d.bruto <= 0) {
+    estado.className = 'err';
+    estado.textContent = 'Completa el nombre y el salario bruto para agregar al trabajador.';
+    return;
+  }
+  planilla.push({ nombre: d.nombre, cargo: d.cargo || 'Sin cargo', tipo: PARAMS.minimos[d.tipo].nombre,
+                  bruto: d.bruto, desc: res.totalDesc, liquido: res.liquido, alertas: res.alertas.length });
+  estado.className = '';
+  estado.textContent = `${d.nombre} se agregó a la planilla.`;
+  renderPlanilla();
+}
+
+/* =====================================================================
+   INICIO
+   ===================================================================== */
+montarParametros();
+document.querySelector('main').addEventListener('input', e => { if (!e.target.closest('#params')) { sincronizarAlim(); actualizar(); } });
+document.querySelector('main').addEventListener('change', e => { if (!e.target.closest('#params')) { sincronizarAlim(); actualizar(); } });
+document.querySelectorAll('[data-caso]').forEach(b => b.addEventListener('click', () => cargarCaso(CASOS[b.dataset.caso])));
+$('limpiar').addEventListener('click', limpiar);
+$('add-otro').addEventListener('click', () => { addOtro(); actualizar(); });
+$('agregar').addEventListener('click', agregarAPlanilla);
+limpiar(); renderPlanilla();
+</script>
+</body>
+</html>
